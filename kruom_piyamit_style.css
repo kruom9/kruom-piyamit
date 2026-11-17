@@ -34,3 +34,11 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:8px 8px;b
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.right{margin-left:auto}
 .note{font-size:13px;color:#7A5600;background:#FFF8E6;border-radius:12px;padding:10px 12px}
 .err{color:var(--red);font-size:14px;margin-top:8px}
+
+/* มือถือ (เพิ่ม 17 พ.ย. 2569 ตอน deploy) */
+@media (max-width:720px){
+  header{flex-wrap:wrap;padding:10px 14px;gap:8px}header h1{font-size:18px}header>.muted{display:none}header .sp{display:none}
+  #hdr{width:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center}header .chip{font-size:12.5px;padding:4px 10px}
+  main{padding:14px}.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}
+  .node{width:100%}.card{overflow-x:auto}table{font-size:12.5px}th,td{padding:6px 5px}
+}
