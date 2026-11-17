@@ -1,0 +1,85 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Piyamit · เตรียมสอบ TCAS ม.6</title><link rel="stylesheet" href="kruom_piyamit_style.css"><script src="kruom_piyamit_config.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<style>.ch{display:block;width:100%;text-align:left;margin:6px 0}.ch.sel{outline:3px solid #3b5bdb}.ok{color:#2e7d32;font-weight:700}.no{color:#c62828;font-weight:700}.sol{background:#f3f8f3;border-left:4px solid #2e7d32;padding:6px 10px;margin-top:8px}.rat{margin:4px 0}.pend{color:#9a6b00;font-weight:700}.scoreline{font-weight:700;color:#0b4f8a}.q{white-space:pre-wrap}</style></head>
+<body><div class="draft">หมวดเตรียมสอบ TCAS ม.6 · เปิดสอบ A-Level ภาษาอังกฤษ · <a href="kruom_piyamit_student.html">← กลับหน้านักเรียน</a></div><div id="testbar"></div>
+<header><div class="logo">P</div><h1>Piyamit · เตรียมสอบ TCAS ม.6</h1><div class="sp"></div><div id="hdr"></div></header>
+<main id="app"></main>
+<script>
+const S={tok:sessionStorage.getItem("py_tok"),home:null,run:null};
+const $=id=>document.getElementById(id),app=()=>$("app");
+function tex(){try{renderMathInElement(app(),{delimiters:[{left:"$",right:"$",display:false}],throwOnError:false})}catch(e){}}
+// ข้อความโจทย์มีสูตร LaTeX ใน $...$ · escape เฉพาะส่วนที่ไม่ใช่สูตร
+function t(s){
+  return String(s??"").split(/(<img\b[^>]*\/?>)/i).map(part=>{
+    if(/^<img\b/i.test(part) && /src="data:image\/(png|svg\+xml)[;,]/i.test(part) && !/on[a-z]+\s*=/i.test(part) && !/src=["']?https?:/i.test(part))
+      return part;
+    return String(part).split(/(\$[^$]+\$)/).map(p=>esc(p)).join("");
+  }).join("");
+}
+const ERRS={NOT_AVAILABLE:"หมวดนี้ยังไม่เปิดสำหรับบัญชีนี้ (เปิดเฉพาะ ม.6 หลังครูออมอนุมัติ)",NO_MOCK:"ไม่พบชุดจำลอง",MOCK_NOT_READY:"ชุดจำลองยังมีข้อที่รออนุมัติ"};
+function login(){app().innerHTML=`<div class="card" style="max-width:440px;margin:30px auto"><h2>เข้าสู่ระบบ</h2>
+<label>ชื่อผู้ใช้ = เลขประจำตัวนักเรียน</label><input id="u" autocomplete="username"><label>รหัสผ่าน</label><input id="p" type="password" autocomplete="current-password">
+<div id="e" class="err"></div><button class="btn" style="width:100%;margin-top:14px" onclick="doLogin()">เข้าสู่ระบบ</button></div>`}
+async function doLogin(){try{const r=await rpc("py_login",{p_code:$("u").value,p_password:$("p").value});if(r.error)return $("e").textContent=r.error;S.tok=r.token;sessionStorage.setItem("py_tok",r.token);home()}catch(e){$("e").textContent=e.message}}
+async function home(){if(!S.tok)return login();let h;try{h=await rpc("py_tcas_home",{p_token:S.tok})}catch(e){sessionStorage.removeItem("py_tok");S.tok=null;return login()}
+ if(h.error)return app().innerHTML=`<div class="card">${esc(ERRS[h.error]||h.error)}</div>`;S.home=h;
+ app().innerHTML=h.exams.length?h.exams.map(x=>`<div class="card"><h2>${esc(x.name)}</h2><div class="muted">${x.items} ข้อ · ${x.points} คะแนน · ${x.minutes} นาที · สถานะ ${esc(x.status)}</div>
+ ${x.mocks.map(m=>`<button class="btn" style="margin:8px 0" onclick="mock(${m.id})">📝 ${esc(m.title)}</button>`).join("")}
+ <h3>ฝึกรายหัวเรื่อง</h3>${x.topics.map(tp=>`<button class="btn ghost ch" onclick="topic(${tp.id},'${esc(tp.title)}')">${tp.no}. ${esc(tp.title)} <span class="muted">(${tp.n_items} ข้อ)</span></button>`).join("")}</div>`).join(""):`<div class="card">ยังไม่มีวิชาที่เปิดให้ทำ</div>`}
+async function topic(id,title){const r=await rpc("py_tcas_topic_items",{p_token:S.tok,p_topic_id:id,p_n:20});if(r.error)return alert(ERRS[r.error]||r.error);S.run={items:r.items,i:0,title,score:0,max:0,graded:r.items.some(isGraded),mode:"topic"};show()}
+function isChoice(it){return ["mcq","single","pair","multi"].includes(it.kind)}
+function isMulti(it){return it.kind==="multi"}
+function isGraded(it){return ["single","multi","pair"].includes(it.kind)}
+function itemHtml(it){
+  const q=`<div class="q">${t(it.stem)}</div>`;
+  if(!isChoice(it)) return q+`<label>คำตอบเป็นตัวเลข</label><input id="num" inputmode="decimal">`;
+  if(isMulti(it)) return q+`<div class="muted">เลือกได้มากกว่า 1 ข้อ · ฝนทุกข้อที่จำเป็น</div>`+it.choices.map((c,k)=>`<label class="ch" id="c${k}" style="display:block"><input type="checkbox" name="ms" value="${k}" onchange="syncMulti()"> ${k+1}) ${t(c)}</label>`).join("");
+  const hint=it.kind==="pair"?"เลือกข้อเดียว · คะแนนรวมกับข้อคู่เมื่อปัญหาและวิธีแก้สอดคล้องกัน":(it.kind==="single"?"เลือกตอบตัวเลือกเดียว · คะแนนลดหลั่นตามแนวคิดของตัวเลือก":"");
+  return q+(hint?`<div class="muted">${hint}</div>`:"")+it.choices.map((c,k)=>`<button class="btn ghost ch" id="c${k}" onclick="pick(${k})">${k+1}) ${t(c)}</button>`).join("");
+}
+function show(){const R=S.run,it=R.items[R.i];if(!it)return app().innerHTML=`<div class="card"><h2>${esc(R.title)}</h2><p>${R.graded?`ผลรวมตามเกณฑ์ ${Number(R.score).toFixed(2)} จาก ${Number(R.max).toFixed(2)}`:`ถูก ${R.score} จาก ${R.items.length} ข้อ`}</p><button class="btn" onclick="home()">กลับหน้าหลัก</button></div>`;
+ R.pick=null;R.picks=[];app().innerHTML=`<div class="card"><div class="muted">${esc(R.title)} · ข้อ ${R.i+1}/${R.items.length}</div>${itemHtml(it)}<div id="fb"></div><button class="btn" id="go" style="margin-top:10px" onclick="check()">ตรวจคำตอบ</button></div>`;tex()}
+function pick(k){S.run.pick=k;document.querySelectorAll(".ch").forEach(b=>b.classList.remove("sel"));const el=$("c"+k);if(el)el.classList.add("sel")}
+function syncMulti(){S.run.picks=[...document.querySelectorAll('input[name=ms]:checked')].map(x=>+x.value);document.querySelectorAll(".ch").forEach(b=>b.classList.remove("sel"));S.run.picks.forEach(k=>{const el=$("c"+k);if(el)el.classList.add("sel")})}
+function fbHtml(r,it){
+  if(isGraded(it) || r.mode==="single_graded" || r.mode==="multi_pattern" || r.mode==="pair"){
+    let h="";
+    if(r.pending_pair) h+=`<div class="pend">คะแนนข้อนี้จะรวมกับข้อคู่เมื่อตอบครบทั้งคู่ ตามผังทางการ (สอดคล้องได้เต็มทั้งคู่ ไม่สอดคล้องได้ 0 ทั้งคู่)</div>`;
+    else h+=`<div class="scoreline">ได้ ${Number(r.score||0).toFixed(2)} จาก ${Number(r.max_raw||1).toFixed(2)} ตามเกณฑ์หลายระดับ</div>`;
+    const rats=r.rationales||[];
+    if(rats.length){
+      h+=`<div class="sol"><b>แนวคิดรายตัวเลือก</b>`+rats.map((x,i)=>`<div class="rat">${i+1}) ${t(x)}</div>`).join("")+`</div>`;
+    }
+    if(r.solution) h+=`<div class="sol">${t(r.solution)}</div>`;
+    return h;
+  }
+  return `<div class="${r.correct?"ok":"no"}">${r.correct?"ถูกต้อง":"ยังไม่ถูก"} · เฉลย ${it.kind==="mcq"?(r.answer_idx+1)+")":r.answer_num}</div><div class="sol">${t(r.solution)}</div>`;
+}
+async function check(){const R=S.run,it=R.items[R.i];let v={};
+ if(isMulti(it)){if(!R.picks||!R.picks.length)return;v={p_chosen_set:R.picks}}
+ else if(isChoice(it)){if(R.pick==null)return;v={p_chosen:R.pick}}
+ else {v={p_value:parseFloat($("num").value)}}
+ const r=await rpc("py_tcas_submit",Object.assign({p_token:S.tok,p_item_id:it.id},v));if(r.error)return alert(r.error);
+ if(isGraded(it)){R.score+=Number(r.score||0)+Number(r.partner_points_awarded||0);R.max+=Number(r.max_raw||1);R.graded=true}
+ else if(r.correct)R.score++;
+ $("fb").innerHTML=fbHtml(r,it);
+ $("go").textContent="ข้อต่อไป";$("go").onclick=()=>{R.i++;show()};tex()}
+async function mock(id){const r=await rpc("py_tcas_mock",{p_token:S.tok,p_mock_id:id});if(r.error)return alert(ERRS[r.error]||r.error);
+ S.run={mock:r,ans:{},end:Date.now()+r.minutes*60000};app().innerHTML=`<div class="card"><h2>${esc(r.title)}</h2><div id="tm" class="chip"></div>`+r.items.map(it=>{
+  const head=`<div class="card"><b>ข้อ ${it.pos}</b> <span class="muted">(${it.points} คะแนน)</span><div class="q">${t(it.stem)}</div>`;
+  if(isMulti(it)) return head+`<div class="muted">เลือกได้มากกว่า 1 ข้อ</div>`+it.choices.map((c,k)=>`<label style="display:block"><input type="checkbox" name="q${it.id}" value="${k}"> ${k+1}) ${t(c)}</label>`).join("")+`</div>`;
+  if(isChoice(it)) return head+it.choices.map((c,k)=>`<label style="display:block"><input type="radio" name="q${it.id}" value="${k}"> ${k+1}) ${t(c)}</label>`).join("")+`</div>`;
+  return head+`<input id="n${it.id}" inputmode="decimal" placeholder="ตอบเป็นตัวเลข"></div>`;
+ }).join("")+`<button class="btn" onclick="sendMock()">ส่งคำตอบทั้งชุด</button></div>`;tex();tick()}
+function tick(){if(!S.run||!S.run.mock||!$("tm"))return;const s=Math.max(0,Math.round((S.run.end-Date.now())/1000));$("tm").textContent=`เหลือเวลา ${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;if(s>0)setTimeout(tick,1000)}
+async function sendMock(){const M=S.run.mock;let sc=0;for(const it of M.items){let v={};if(isMulti(it)){const c=[...document.querySelectorAll(`input[name=q${it.id}]:checked`)].map(x=>+x.value);if(!c.length)continue;v={p_chosen_set:c}}else if(isChoice(it)){const c=document.querySelector(`input[name=q${it.id}]:checked`);if(!c)continue;v={p_chosen:+c.value}}else{const x=$("n"+it.id)&&$("n"+it.id).value;if(!x)continue;v={p_value:parseFloat(x)}}
+ const r=await rpc("py_tcas_submit",Object.assign({p_token:S.tok,p_item_id:it.id,p_mock_id:M.mock_id},v));if(r.error)continue;
+ if(r.points_awarded!=null) sc+=Number(r.points_awarded||0)+Number(r.partner_points_awarded||0);
+ else if(r.correct) sc+=+it.points}
+ app().innerHTML=`<div class="card"><h2>ผลชุดจำลอง</h2><p style="font-size:1.6em">${sc.toFixed(2)} / 100 คะแนน</p><p class="muted">ข้อแบบสมรรถนะการทำงานแสดงผลตามเกณฑ์หลายระดับ ไม่ใช่แค่ถูกหรือผิด · คะแนนชุดจำลองของ TGAT3 ใช้ตัวคูณ 25/15 ตามที่เปิดเผยในเอกสารร่าง</p><button class="btn" onclick="home()">กลับหน้าหลัก</button></div>`}
+
+home();
+</script></body></html>

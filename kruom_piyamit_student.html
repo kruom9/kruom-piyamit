@@ -36,6 +36,7 @@ async function home() {
     return `<div class="subj ${ok ? "" : "off"}" style="background:${s.color}" ${ok ? `onclick="openCourse(${s.course_id})"` : ""}>
       <div class="ic">${s.icon}</div><b>${esc(s.name)}</b><small>${s.chapters || 0} บท · ${s.items} ข้อ${ok ? "" : " · เร็ว ๆ นี้"}</small>
       <div class="bar"><i style="width:${s.mastery || 0}%"></i></div><small>เชี่ยวชาญ ${s.mastery || 0}%</small></div>`; }).join("")}</div>
+  ${S.me.grade === 6 ? `<div class="note" style="margin-top:14px"><a class="btn" href="kruom_piyamit_tcas.html">📝 สอบ A-Level ภาษาอังกฤษ (เตรียมสอบ TCAS ม.6)</a></div>` : ""}
   <div class="note" style="margin-top:14px">วิชาสีเทา = ยังไม่มีข้อสอบในต้นแบบ หรือยังไม่มีหัวข้อเทอม 2 ที่ยืนยันได้</div>`;
 }
 async function openCourse(id) {
