@@ -1,0 +1,104 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Piyamit · นักเรียน (ฉบับร่าง)</title><link rel="stylesheet" href="kruom_piyamit_style.css"><script src="kruom_piyamit_config.js"></script></head>
+<body><div class="draft">ฉบับร่าง สำหรับครูออมตรวจและอนุมัติ · ต้นแบบในเครื่อง ยังไม่เปิดให้นักเรียนใช้</div><div id="testbar"></div>
+<header><div class="logo">P</div><h1>Piyamit</h1><span class="muted" style="color:#C9D2F2">เรียนทีละขั้น · ภาคเรียนที่ 2/2569</span><div class="sp"></div><div id="hdr"></div></header>
+<main id="app"></main>
+<script>
+const S = { tok: sessionStorage.getItem("py_tok"), me: null, course: null, run: null };
+const $ = id => document.getElementById(id), app = () => $("app");
+function hdr() {
+  if (!S.me) { $("hdr").innerHTML = ""; $("testbar").innerHTML = ""; return; }
+  const r = S.me.rewards || {};
+  $("hdr").innerHTML = `<span class="chip">⭐ ${r.points || 0} แต้ม</span> <span class="chip">🪙 ${r.coins || 0}</span> <span class="chip">🔥 ${r.streak || 0} วัน</span> <span class="chip">${esc(S.me.name)} · ม.${S.me.grade}</span> <button class="btn ghost" onclick="logout()">ออก</button>`;
+  $("testbar").innerHTML = S.me.is_test ? `<div class="test">บัญชีทดสอบ (ข้อมูลสมมติ) · เห็นข้อสอบสถานะ draft ที่รอครูตรวจ</div>` : "";
+}
+function login() {
+  app().innerHTML = `<div class="card" style="max-width:440px;margin:30px auto"><div class="row"><div class="mascot">🦉</div><div><h2 style="margin:0">สวัสดี! น้องมิตรรออยู่</h2><div class="muted">เข้าสู่ระบบด้วยบัญชีนักเรียนโรงเรียนปิยมิตรวิทยา</div></div></div>
+  <label>ชื่อผู้ใช้ = เลขประจำตัวนักเรียน</label><input id="u" autocomplete="username" placeholder="เช่น 12345">
+  <label>รหัสผ่าน = เลขประจำตัวประชาชน 13 หลัก</label><input id="p" type="password" inputmode="numeric" autocomplete="current-password" placeholder="•••••••••••••">
+  <div class="muted" style="margin-top:8px">ระบบตรวจกับข้อมูลที่เข้ารหัสไว้แล้ว ไม่เก็บเลขประจำตัวประชาชนจริง</div>
+  <div id="e" class="err"></div><button class="btn" style="width:100%;margin-top:14px" onclick="doLogin()">เข้าสู่ระบบ</button></div>`;
+}
+const ERR = { BAD_LOGIN: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", NO_STUDENT: "ไม่พบเลขประจำตัวนักเรียนนี้", NID_FORMAT: "รหัสผ่านต้องเป็นตัวเลข 13 หลัก", NO_NID: "ยังไม่มีข้อมูลสำหรับเข้าสู่ระบบ กรุณาติดต่อครู", LOCKED: "ลองผิดหลายครั้ง กรุณารอ 10 นาที", NOT_OPEN: "ระบบยังไม่เปิดให้นักเรียนใช้งาน (ช่วงทดสอบ)" };
+async function doLogin() {
+  try { const r = await rpc("py_login", { p_code: $("u").value, p_password: $("p").value });
+    if (r.error) { $("e").textContent = ERR[r.error] || r.error; return; }
+    S.tok = r.token; sessionStorage.setItem("py_tok", r.token); home();
+  } catch (e) { $("e").textContent = e.message; }
+}
+async function logout() { try { await rpc("py_logout", { p_token: S.tok }); } catch (e) {} sessionStorage.removeItem("py_tok"); S.tok = null; S.me = null; hdr(); login(); }
+async function home() {
+  try { S.me = await rpc("py_me", { p_token: S.tok }); } catch (e) { sessionStorage.removeItem("py_tok"); S.tok = null; return login(); }
+  hdr();
+  const lower = S.me.grade <= 3;
+  app().innerHTML = `<div class="row" style="margin-bottom:14px"><div class="mascot">🦉</div><div><h2 style="margin:0">เลือกวิชาที่อยากฝึกวันนี้</h2><div class="muted">${lower ? "มัธยมต้น" : "มัธยมปลาย"} · ม.${S.me.grade} · 8 วิชา · เนื้อหาภาคเรียนที่ 2</div></div></div>
+  <div class="grid g4">${S.me.subjects.map(s => { const ok = s.course_id && s.items > 0; const v = VERIFY[s.verify] || ["", ""];
+    return `<div class="subj ${ok ? "" : "off"}" style="background:${s.color}" ${ok ? `onclick="openCourse(${s.course_id})"` : ""}>
+      <div class="ic">${s.icon}</div><b>${esc(s.name)}</b><small>${s.chapters || 0} บท · ${s.items} ข้อ${ok ? "" : " · เร็ว ๆ นี้"}</small>
+      <div class="bar"><i style="width:${s.mastery || 0}%"></i></div><small>เชี่ยวชาญ ${s.mastery || 0}%</small></div>`; }).join("")}</div>
+  <div class="note" style="margin-top:14px">วิชาสีเทา = ยังไม่มีข้อสอบในต้นแบบ หรือยังไม่มีหัวข้อเทอม 2 ที่ยืนยันได้</div>`;
+}
+async function openCourse(id) {
+  const m = await rpc("py_course_map", { p_token: S.tok, p_course_id: id }); S.course = m;
+  const v = VERIFY[m.verify] || ["", ""];
+  app().innerHTML = `<div class="row" style="margin-bottom:12px"><button class="btn ghost" onclick="home()">← วิชาทั้งหมด</button><h2 style="margin:0">${esc(m.subject)} ม.${m.grade}</h2><span class="pill ${v[1]}">${v[0]}</span></div>
+  ${m.chapters.map(ch => { const has = ch.lessons.some(l => l.items > 0); return `<div class="card chap"><div class="row"><h3>บทที่ ${ch.no} ${esc(ch.title)}</h3>
+     ${has ? `<button class="btn gold right" onclick="startQuiz(${ch.id})">แบบทดสอบท้ายบท${ch.quiz_best != null ? ` (ดีที่สุด ${ch.quiz_best}%)` : ""}</button>` : `<span class="pill right">ยังไม่มีข้อสอบ</span>`}</div>
+     <div class="path">${ch.lessons.map(l => { const lock = !l.unlocked || l.items === 0;
+       return `<div class="node ${lock ? "lock" : ""}" ${lock ? "" : `onclick="pickLevel(${l.id})"`}><div class="muted">บทย่อย ${ch.no}.${l.no} · ${l.minutes} นาที</div><div class="t">${esc(l.title.length > 60 ? l.title.slice(0, 60) + "…" : l.title)}</div>
+         <div class="lv">${[1, 2, 3, 4].map(k => `<span class="${l.max_level >= k ? "on" : ""}"></span>`).join("")}</div>
+         <div class="muted" style="margin-top:6px">${l.items === 0 ? "ยังไม่มีข้อ" : !l.unlocked ? "🔒 ผ่านบทย่อยก่อนหน้า ≥ 50%" : `เชี่ยวชาญ ${Math.round(l.mastery)}%`}</div></div>`; }).join("")}</div></div>`; }).join("")}`;
+}
+function pickLevel(lid) {
+  let l; S.course.chapters.forEach(c => c.lessons.forEach(x => { if (x.id === lid) l = x; }));
+  app().innerHTML = `<div class="row" style="margin-bottom:12px"><button class="btn ghost" onclick="openCourse(${S.course.course_id})">← แผนที่บท</button><h2 style="margin:0">${esc(l.title)}</h2></div>
+  <div class="grid g4">${[1, 2, 3, 4].map(k => { const open = k <= l.max_level + 1, n = (l.by_level || {})[k] || 0;
+    return `<div class="card" style="text-align:center"><div style="font-size:30px">${l.max_level >= k ? "✅" : open ? "⭐" : "🔒"}</div><b>${LEVELS[k]}</b><div class="muted">${n} ข้อ</div>
+    <button class="btn ${open ? "gold" : "ghost"}" style="margin-top:10px" ${open && n ? `onclick="practice(${lid},${k})"` : "disabled"}>${l.max_level >= k ? "ฝึกอีกครั้ง" : "เริ่ม"}</button></div>`; }).join("")}</div>
+  <div class="note" style="margin-top:14px">ผ่านด่านเมื่อตอบถูกอย่างน้อย 80% (ทำอย่างน้อย 3 ข้อ) · ผ่านแต่ละด่านได้ความเชี่ยวชาญ 25%</div>`;
+}
+async function practice(lid, lv) {
+  const r = await rpc("py_lesson_items", { p_token: S.tok, p_lesson_id: lid, p_level: lv, p_n: 5 });
+  if (r.error) { alert("ด่านนี้ยังล็อกอยู่"); return; }
+  S.run = { lid, lv, items: r.items, i: 0, ok: 0, pts: 0, last: null, t0: Date.now(), hint: false, quiz: false };
+  showItem();
+}
+function showItem() {
+  const R = S.run, it = R.items[R.i]; R.hint = false; R.t0 = Date.now();
+  app().innerHTML = `<div class="card" style="max-width:760px;margin:0 auto"><div class="row"><span class="pill">${R.quiz ? "แบบทดสอบท้ายบท" : LEVELS[R.lv]}</span><span class="muted">ข้อ ${R.i + 1} / ${R.items.length}</span>${it.status === "draft" ? `<span class="pill warn right">draft รอครูตรวจ</span>` : ""}</div>
+   <div class="bar" style="margin:10px 0"><i style="width:${100 * R.i / R.items.length}%;background:var(--blue)"></i></div>
+   <div class="q">${esc(it.stem)}</div><div id="ch">${it.choices.map((c, k) => `<button class="choice" onclick="answer(${k})"><b>${"กขคง"[k]}.</b> ${esc(c)}</button>`).join("")}</div>
+   ${!R.quiz && it.hint ? `<button class="btn ghost" id="hb" onclick="showHint()">💡 ขอคำใบ้ (แต้มลดครึ่งหนึ่ง)</button><div id="hint"></div>` : ""}<div id="fb"></div></div>`;
+}
+function showHint() { const it = S.run.items[S.run.i]; S.run.hint = true; $("hint").innerHTML = `<div class="hint">🦉 น้องมิตรใบ้ว่า: ${esc(it.hint)}</div>`; $("hb").remove(); }
+async function answer(k) {
+  const R = S.run, it = R.items[R.i]; document.querySelectorAll(".choice").forEach(b => b.disabled = true);
+  if (R.quiz) { R.answers.push({ item_id: it.id, chosen: k }); R.i++; return R.i < R.items.length ? showItem() : finishQuiz(); }
+  const r = await rpc("py_submit", { p_token: S.tok, p_item_id: it.id, p_chosen: k, p_hint_used: R.hint, p_ms: Date.now() - R.t0, p_client_id: crypto.randomUUID() });
+  R.last = r; if (r.correct) R.ok++; R.pts += r.points || 0;
+  const bs = document.querySelectorAll(".choice"); bs[r.answer_idx].classList.add("right"); if (!r.correct) bs[k].classList.add("wrong");
+  $("fb").innerHTML = `<div class="fb ${r.correct ? "ok" : "no"}"><b>${r.correct ? `ถูกต้อง! +${r.points} แต้ม` : "ยังไม่ถูก ลองดูคำอธิบายนะ"}</b><div style="margin-top:6px">${esc(r.explanation || "")}</div></div>
+   <div class="row" style="margin-top:12px"><button class="btn right" onclick="next()">${R.i + 1 < R.items.length ? "ข้อต่อไป →" : "ดูผล"}</button></div>`;
+}
+function next() { S.run.i++; S.run.i < S.run.items.length ? showItem() : result(); }
+async function result() {
+  const R = S.run, L = R.last || {}; S.me = await rpc("py_me", { p_token: S.tok }); hdr();
+  app().innerHTML = `<div class="card" style="max-width:640px;margin:0 auto;text-align:center"><div class="mascot" style="margin:0 auto">🦉</div>
+   <h2>${L.level_up ? "ผ่านด่านแล้ว! เก่งมาก" : R.ok >= R.items.length * 0.8 ? "ทำได้ดีมาก!" : "ฝึกอีกนิด เดี๋ยวก็ผ่าน"}</h2>
+   <div class="grid g3"><div class="kpi"><b>${R.ok}/${R.items.length}</b><span>ตอบถูก</span></div><div class="kpi"><b>+${R.pts}</b><span>แต้มรอบนี้</span></div><div class="kpi"><b>${Math.round(L.mastery || 0)}%</b><span>ความเชี่ยวชาญบทย่อย</span></div></div>
+   ${(L.new_badges || []).length ? `<p>🏅 ได้เหรียญตราใหม่: ${L.new_badges.map(esc).join(", ")}</p>` : ""}
+   <div class="row" style="justify-content:center;margin-top:14px"><button class="btn ghost" onclick="openCourse(${S.course.course_id})">กลับแผนที่บท</button><button class="btn gold" onclick="refreshPick(${R.lid})">ด่านถัดไป</button></div></div>`;
+}
+async function refreshPick(lid) { S.course = await rpc("py_course_map", { p_token: S.tok, p_course_id: S.course.course_id }); pickLevel(lid); }
+async function startQuiz(chid) {
+  const title = (S.course.chapters.find(c => c.id === chid) || {}).title || "";
+  const r = await rpc("py_quiz_items", { p_token: S.tok, p_chapter_id: chid, p_n: 10 });
+  S.run = { chid, title, items: r.items, i: 0, answers: [], quiz: true }; showItem();
+}
+async function finishQuiz() {
+  const R = S.run, r = await rpc("py_quiz_submit", { p_token: S.tok, p_chapter_id: R.chid, p_answers: R.answers }); S.me = await rpc("py_me", { p_token: S.tok }); hdr();
+  app().innerHTML = `<div class="card" style="max-width:640px;margin:0 auto;text-align:center"><h2>ผลแบบทดสอบท้ายบท: ${esc(R.title)}</h2><div class="big">${r.score}/${r.max}</div><div class="muted">${r.percent}% · คะแนนนี้ใช้คำนวณคะแนนเก็บจากแอป</div>
+  <div class="row" style="justify-content:center;margin-top:14px"><button class="btn" onclick="openCourse(${S.course.course_id})">กลับแผนที่บท</button></div></div>`;
+}
+S.tok ? home() : login();
+</script></body></html>

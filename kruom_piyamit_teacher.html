@@ -1,0 +1,75 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Piyamit · แดชบอร์ดครู (ฉบับร่าง)</title><link rel="stylesheet" href="kruom_piyamit_style.css"><script src="kruom_piyamit_config.js"></script></head>
+<body><div class="draft">ฉบับร่าง สำหรับครูออมตรวจและอนุมัติ · ต้นแบบในเครื่อง ยังไม่เผยแพร่</div><div id="testbar"></div>
+<header><div class="logo">P</div><h1>Piyamit · แดชบอร์ดครู</h1><div class="sp"></div><div id="hdr"></div></header>
+<main id="app"></main>
+<script>
+const S = { tok: sessionStorage.getItem("py_ttok"), home: null, rep: null };
+const $ = id => document.getElementById(id), app = () => $("app");
+function login() {
+  app().innerHTML = `<div class="card" style="max-width:420px;margin:30px auto"><h2 style="margin-top:0">เข้าสู่ระบบครู</h2>
+  <label>ชื่อผู้ใช้</label><input id="u" autocomplete="username"><label>รหัสครู</label><input id="p" type="password" autocomplete="current-password">
+  <div id="e" class="err"></div><button class="btn" style="width:100%;margin-top:14px" onclick="doLogin()">เข้าสู่ระบบ</button></div>`;
+}
+async function doLogin() {
+  const r = await rpc("py_teacher_login", { p_user: $("u").value, p_code: $("p").value });
+  if (r.error) { $("e").textContent = r.error === "LOCKED" ? "ลองผิดหลายครั้ง กรุณารอ 10 นาที" : r.error === "NOT_OPEN" ? "ระบบยังไม่เปิดให้ครูใช้งาน (ช่วงทดสอบ)" : "ชื่อผู้ใช้หรือรหัสไม่ถูกต้อง"; return; }
+  S.tok = r.token; sessionStorage.setItem("py_ttok", r.token); S.isTest = r.is_test; sessionStorage.setItem("py_ttest", r.is_test ? "1" : ""); start();
+}
+function logout() { sessionStorage.removeItem("py_ttok"); S.tok = null; $("hdr").innerHTML = ""; login(); }
+async function start() {
+  try { S.home = await rpc("py_teacher_home", { p_token: S.tok }); } catch (e) { return logout(); }
+  $("hdr").innerHTML = `<span class="chip">${esc(S.home.name)}</span> <button class="btn ghost" onclick="logout()">ออก</button>`;
+  if (sessionStorage.getItem("py_ttest")) $("testbar").innerHTML = `<div class="test">บัญชีครูทดสอบ · เห็นเฉพาะห้องทดสอบ (ม.x/99) ที่เป็นข้อมูลสมมติ</div>`;
+  const rooms = S.home.rooms, g0 = rooms.length ? rooms[0].grade : 1;
+  app().innerHTML = `<div class="card row" style="margin-bottom:14px"><div style="min-width:200px"><label style="margin-top:0">ห้องเรียน</label><select id="room" onchange="fillCourses()">${rooms.map(r => `<option value="${r.grade}|${r.room}">${esc(r.label)}</option>`).join("")}</select></div>
+   <div style="min-width:260px"><label style="margin-top:0">รายวิชา (ภาคเรียนที่ 2/2569)</label><select id="course"></select></div>
+   <button class="btn" style="align-self:flex-end" onclick="load()">ดูรายงาน</button></div><div id="rep"></div>`;
+  fillCourses();
+  const c = new URLSearchParams(location.search); if (c.get("auto")) load();
+}
+function fillCourses() {
+  const g = +$("room").value.split("|")[0];
+  $("course").innerHTML = S.home.courses.filter(c => c.grade === g).map(c => `<option value="${c.id}">${esc(c.subject)} ม.${c.grade}${c.verify === "missing" ? " (ยังไม่มีหัวข้อ)" : ""}</option>`).join("");
+}
+const STC = { "เชี่ยวชาญ": "ok", "กำลังพัฒนา": "warn", "ต้องช่วยเหลือ": "bad", "ยังไม่เริ่ม": "" };
+const heat = v => v == null ? "#D9DEEC" : v >= 80 ? "#1FA463" : v >= 50 ? "#F2B705" : v > 0 ? "#E5484D" : "#B9C1D9";
+const fmt = t => t ? new Date(t).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) + " น." : "—";
+async function load() {
+  const room = +$("room").value.split("|")[1], cid = +$("course").value;
+  const d = S.rep = await rpc("py_teacher_report", { p_token: S.tok, p_course_id: cid, p_room: room });
+  const st = d.students, started = st.filter(s => s.attempts > 0), cnt = k => st.filter(s => s.status === k).length;
+  const avg = started.length ? Math.round(started.reduce((a, s) => a + (+s.grade.mastery || 0), 0) / started.length) : 0;
+  const cfgOk = st[0] && st[0].grade.config_verified;
+  $("rep").innerHTML = `
+  <div class="grid g4" style="margin-bottom:14px"><div class="card kpi"><b>${started.length}/${st.length}</b><span>นักเรียนที่เริ่มฝึกแล้ว</span></div>
+   <div class="card kpi"><b>${avg}%</b><span>ความเชี่ยวชาญเฉลี่ย (คนที่เริ่มแล้ว)</span></div>
+   <div class="card kpi"><b style="color:var(--green)">${cnt("เชี่ยวชาญ")}</b><span>เชี่ยวชาญ</span></div>
+   <div class="card kpi"><b style="color:var(--red)">${cnt("ต้องช่วยเหลือ") + cnt("ยังไม่เริ่ม")}</b><span>ต้องช่วยเหลือ / ยังไม่เริ่ม</span></div></div>
+  <div class="card" style="margin-bottom:14px"><div class="row"><h3 style="margin:0">ความคืบหน้ารายคน · ${esc(d.course.subject)} ม.${d.course.grade}${d.is_test_room ? " · ห้องทดสอบ" : ""}</h3><span class="pill ${(VERIFY[d.course.verify] || [])[1]}">${(VERIFY[d.course.verify] || [""])[0]}</span></div>
+   <div style="overflow:auto"><table><tr><th>นักเรียน</th><th>สถานะ</th><th>ฝึกแล้ว (ข้อ)</th><th>ตอบถูก</th><th>เวลา (นาที)</th><th>บทย่อยที่เชี่ยวชาญ</th><th>ท้ายบท</th><th>คะแนนแอป</th><th>เกรดคาดการณ์</th><th>ล่าสุด</th></tr>
+   ${st.map((s, i) => `<tr style="cursor:pointer" onclick="detail(${i})"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.code)}</div></td><td><span class="pill ${STC[s.status]}">${s.status}</span></td>
+     <td>${s.attempts}</td><td>${s.accuracy == null ? "—" : s.accuracy + "%"}</td><td>${s.minutes}</td><td>${s.mastered}/${d.lessons.length}</td><td>${s.grade.quiz == null ? "—" : Math.round(s.grade.quiz) + "%"}</td>
+     <td><b>${s.grade.app_score ?? "—"}</b><div class="muted">= ${s.grade.app_points ?? 0}/${s.grade.app_share} คะแนน</div></td><td><b style="font-size:18px">${s.attempts ? s.grade.projected_grade : "—"}</b></td><td class="muted">${fmt(s.last_at)}</td></tr>`).join("")}</table></div></div>
+  <div class="card" style="margin-bottom:14px"><h3 style="margin-top:0">ความเชี่ยวชาญรายบทย่อย</h3><div style="overflow:auto"><table><tr><th>นักเรียน</th>${d.lessons.map(l => `<th title="${esc(l.chapter)} · ${esc(l.title)}">${l.label}</th>`).join("")}</tr>
+   ${st.map(s => `<tr><td>${esc(s.name)}</td>${d.lessons.map(l => { const v = s.lesson_mastery[l.id]; return `<td><span class="hm" style="background:${heat(v)}">${v == null ? "" : Math.round(v)}</span></td>`; }).join("")}</tr>`).join("")}</table></div>
+   <div class="muted" style="margin-top:8px">เขียว ≥ 80% · เหลือง 50–79% · แดง &lt; 50% · เทา = ยังไม่ทำ · ${d.lessons.map(l => `${l.label} ${esc(l.title.slice(0, 28))}`).join(" · ")}</div></div>
+  <div id="det"></div>
+  <div class="note">${cfgOk ? "" : "⚠ เกณฑ์แปลงคะแนนเป็นเกรดยังเป็นค่าเริ่มต้นที่รอครูออม/ฝ่ายวิชาการยืนยัน · "}เกรดคาดการณ์คำนวณจากคะแนนแอปอย่างเดียว เกรดจริงต้องรวมคะแนนสอบกลางภาค ปลายภาค และคะแนนเก็บอื่นที่ครูกรอก</div>`;
+}
+function detail(i) {
+  const s = S.rep.students[i], g = s.grade;
+  $("det").innerHTML = `<div class="card" style="margin-bottom:14px"><div class="row"><h3 style="margin:0">${esc(s.name)} · การคำนวณคะแนนและเกรด</h3><button class="btn ghost right" onclick="$('det').innerHTML=''">ปิด</button></div>
+   <div class="grid g4" style="margin-top:12px"><div class="kpi"><b>${g.mastery}%</b><span>ความเชี่ยวชาญเฉลี่ย (น้ำหนัก 50)</span></div><div class="kpi"><b>${g.completion}%</b><span>ความครอบคลุมบทย่อย (น้ำหนัก 20)</span></div>
+   <div class="kpi"><b>${g.quiz ?? "—"}${g.quiz == null ? "" : "%"}</b><span>แบบทดสอบท้ายบท (น้ำหนัก 30)</span></div><div class="kpi"><b>${g.app_score}</b><span>คะแนนแอป 0–100 → ${g.app_points}/${g.app_share} คะแนนเก็บ</span></div></div>
+   <h4>กรอกคะแนนส่วนอื่นเพื่อคำนวณเกรดจริง (ตัวอย่างสัดส่วน: แอป ${g.app_share} + เก็บอื่น ${50 - g.app_share} + กลางภาค 20 + ปลายภาค 30 = 100)</h4>
+   <div class="grid g4"><div><label>คะแนนเก็บอื่น</label><input id="o1" type="number"></div><div><label>กลางภาค</label><input id="o2" type="number"></div><div><label>ปลายภาค</label><input id="o3" type="number"></div>
+   <div style="align-self:flex-end"><button class="btn" onclick="saveOff('${s.ref}')">คำนวณเกรดจริง</button></div></div><div id="gres" style="margin-top:10px">${g.total != null ? `รวม <b>${g.total}</b> → เกรด <b>${g.grade}</b>` : ""}</div></div>`;
+  $("det").scrollIntoView({ behavior: "instant" });
+}
+async function saveOff(ref) {
+  const r = await rpc("py_teacher_set_offline", { p_token: S.tok, p_student: ref, p_course_id: S.rep.course.id, p_other: +$("o1").value, p_mid: +$("o2").value, p_final: +$("o3").value });
+  $("gres").innerHTML = `คะแนนแอป ${r.app_points} + คะแนนที่กรอก = รวม <b>${r.total}</b>/100 → เกรด <b style="font-size:22px">${r.grade}</b> ${r.config_verified ? "" : `<span class="pill warn">เกณฑ์รอยืนยัน</span>`}`;
+}
+S.tok ? start() : login();
+</script></body></html>
