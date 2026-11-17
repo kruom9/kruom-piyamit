@@ -24,9 +24,27 @@ async function start() {
   const rooms = S.home.rooms, g0 = rooms.length ? rooms[0].grade : 1;
   app().innerHTML = `<div class="card row" style="margin-bottom:14px"><div style="min-width:200px"><label style="margin-top:0">ห้องเรียน</label><select id="room" onchange="fillCourses()">${rooms.map(r => `<option value="${r.grade}|${r.room}">${esc(r.label)}</option>`).join("")}</select></div>
    <div style="min-width:260px"><label style="margin-top:0">รายวิชา (ภาคเรียนที่ 2/2569)</label><select id="course"></select></div>
-   <button class="btn" style="align-self:flex-end" onclick="load()">ดูรายงาน</button></div><div id="rep"></div>`;
+   <button class="btn" style="align-self:flex-end" onclick="load()">ดูรายงาน</button></div>${previewCard()}<div id="rep"></div>`;
   fillCourses();
   const c = new URLSearchParams(location.search); if (c.get("auto")) load();
+}
+function previewCard() {
+  if (!(S.home.role === "exec" || sessionStorage.getItem("py_ttest"))) return "";
+  return `<div class="card" style="margin-bottom:14px;border:2px dashed #F2B705"><div class="row"><h3 style="margin:0">🧪 ห้องทดสอบ · ลองทำแบบนักเรียน</h3><span class="pill warn">เห็นข้อ draft + ข้อที่อนุมัติแล้ว</span></div>
+   <div class="muted" style="margin:6px 0 10px">ใช้บัญชีนักเรียนทดสอบ TEST-KRUOM-M1…M6 (ห้อง 99) · ผลการทำแยกจากนักเรียนจริง ไม่นับในรายงานห้องจริง · ข้อที่ยังไม่อนุมัติจะมีป้าย "draft รอครูตรวจ"</div>
+   <div class="row"><div style="min-width:160px"><label style="margin-top:0">ชั้น</label><select id="pvg">${[1,2,3,4,5,6].map(g => `<option value="${g}">ม.${g}</option>`).join("")}</select></div>
+   <button class="btn" style="align-self:flex-end" onclick="preview()">เปิดหน้านักเรียน (ทดลอง)</button>
+   <button class="btn ghost" style="align-self:flex-end" onclick="previewReset()">ล้างผลทดลองของชั้นนี้</button><span id="pvmsg" class="muted" style="align-self:flex-end"></span></div></div>`;
+}
+async function preview() {
+  const r = await rpc("py_teacher_preview", { p_token: S.tok, p_grade: +$("pvg").value });
+  if (r.error) { $("pvmsg").textContent = "เปิดไม่ได้: " + r.error; return; }
+  sessionStorage.setItem("py_tok", r.token); location.href = "kruom_piyamit_student.html";
+}
+async function previewReset() {
+  if (!confirm("ล้างผลทดลองของนักเรียนทดสอบชั้นนี้?")) return;
+  const r = await rpc("py_teacher_preview_reset", { p_token: S.tok, p_grade: +$("pvg").value });
+  $("pvmsg").textContent = r.error ? "ล้างไม่ได้: " + r.error : `ล้างแล้ว (${r.attempts_removed} ข้อ)`;
 }
 function fillCourses() {
   const g = +$("room").value.split("|")[0];
